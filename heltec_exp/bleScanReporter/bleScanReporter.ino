@@ -8,7 +8,6 @@
 
 // creates 'radio', 'display' and 'button' instances
 /* #include "/Users/awdriggs/code/arduino/libraries/Heltec_ESP32_LoRa_v3/src/heltec_unofficial.h" */
-
 #include <heltec_unofficial.h>
 
 // load bluetooth bizness
