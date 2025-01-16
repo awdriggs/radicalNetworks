@@ -1,4 +1,3 @@
-
 // Turns the 'PRG' button into the power button, long press is off
 #define HELTEC_POWER_BUTTON   // must be before "#include <heltec_unofficial.h>"
 #include <heltec_unofficial.h>
@@ -17,21 +16,31 @@ int lowFreq = 4000;
 //ble setup
 int scanTime = 5;  //In seconds
 BLEScan *pBLEScan;
+int scanningRSSI = 0;
+int scanningDeviceCount = 0;
+bool scanInProgress = false;
 
+// Timing variables
+/* unsigned long lastChirpTime = 0; */
+/* unsigned long chirpInterval = 100; // Interval between chirps (ms) */
+
+//updated at the end of the scan
 int totalRSSI = 0;
 int deviceCount = 0;
 
+int rssiAvg = 0;
+int chirpFreq = 0;
+
+//class definiation for each scan result callback
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice advertisedDevice) {
 
     int rssi = advertisedDevice.getRSSI(); // Get the RSSI of the current device
-    totalRSSI += rssi; // Add the RSSI to the total
-    deviceCount++; // Increment the device count
-
-    Serial.printf("Advertised Device: %s \n", advertisedDevice.toString().c_str());
+    scanningRSSI += rssi; // Add the RSSI to the total
+    scanningDeviceCount++; // Increment the device count
+    /* Serial.printf("Advertised Device: %s \n", advertisedDevice.toString().c_str()); */
   }
 };
-
 
 void setup() {
   heltec_setup();
@@ -51,44 +60,39 @@ void setup() {
   pBLEScan->setWindow(99);  // less or equal setInterval value
 }
 
-
 void loop() {
-  totalRSSI = 0;   // Reset before each scan
-  deviceCount = 0; // Reset before each scan
 
-  // put your main code here, to run repeatedly:
-  BLEScanResults *foundDevices = pBLEScan->start(scanTime, false);
-  Serial.println("Scan done!");
+  if(!scanInProgress){
+    pBLEScan->clearResults();  // delete old results fromBLEScan buffer to release memory
 
-  /* Serial.println(foundDevices->getCount()); */
-  /* displayCount(foundDevices->getCount()); */
+    //reset scanvariables
+    scanningRSSI = 0;
+    scanningDeviceCount = 0;
+
+    pBLEScan->start(5, scanCompleteCallback);
+    scanInProgress = true;
+    Serial.println("BLE scan started...");
+  }
 
   if (deviceCount > 0) {
-    Serial.print("Devices found: ");
-    Serial.println(deviceCount);
-    Serial.print("Total RSSI: ");
-    Serial.println(totalRSSI);
-
     chirp(); //make a sound
 
   } else {
     Serial.println("No devices found. Skipping chirp.");
   }
 
-  pBLEScan->clearResults();  // delete results fromBLEScan buffer to release memory
-  delay(2000);
+  delay(280); //delay between chirps
 }
-
 
 void chirp(){
   if (deviceCount == 0) return; // Safety check
 
-  int rssiAvg = totalRSSI / deviceCount; //calc from scan totals
+  rssiAvg = totalRSSI / deviceCount; //calc from scan totals
 
   Serial.print("rssiAvg: ");
   Serial.println(rssiAvg);
 
-  int chirpFreq = map(rssiAvg, -90, 0, lowFreq, highFreq);
+  chirpFreq = map(rssiAvg, -100, -20, lowFreq, highFreq); //tune, most averages in the the high 80s to low 90s
 
   Serial.print("chirp freq: ");
   Serial.println(chirpFreq);
@@ -104,7 +108,7 @@ void chirp(){
 
     //hold high freq
     ledcWriteTone(BUZZER_PIN, chirpFreq);
-    delay(50);
+    delay(100);
 
     //ramp down?
     /* for (int freq = highFreq; freq >= lowFreq; freq -= 100) { // Increase frequency in steps of 100 Hz */
@@ -119,13 +123,40 @@ void chirp(){
 
     //hold low freq
     ledcWriteTone(BUZZER_PIN, lowFreq);
-    delay(50); //
+    delay(100); //
 
     /* display.display(); */
   }
 
+    //ramp down?
+    /* for (int freq = lowFreq; freq >= 0; freq -= 100) { // Increase frequency in steps of 100 Hz */
+    /*   if(freq < 0){ //don't drop below the low! */
+    /*     freq = 0; */
+    /*   } */
+
+    /*   ledcWriteTone(BUZZER_PIN, freq); */
+    /*   /1* display.println(String(freq)); *1/ */
+    /*   delay(1);             // Wait 100 ms before the next frequency */
+    /* } */
 
   ledcWriteTone(BUZZER_PIN, 0);
 
   /* delay(280); */
 }
+
+// Called when the BLE scan is complete
+void scanCompleteCallback(BLEScanResults results) {
+  Serial.println("BLE scan complete!");
+  deviceCount = scanningDeviceCount;
+  totalRSSI = scanningRSSI;
+
+  if (scanningDeviceCount > 0) {
+    Serial.printf("Devices found: %d\n", deviceCount);
+    Serial.printf("Total RSSI: %d\n", totalRSSI);
+  } else {
+    Serial.println("No devices found.");
+  }
+
+  scanInProgress = false; // Allow the next scan to start
+}
+
