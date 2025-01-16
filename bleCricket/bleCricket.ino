@@ -8,6 +8,14 @@
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 
+//Display
+//for the two new boards
+/* static SSD1306Wire  display(0x3c, 500000, SDA_OLED, SCL_OLED, GEOMETRY_128_64, RST_OLED); // addr , freq , i2c group , resolution , rst */
+#define CENTER_X 64
+#define CENTER_Y 32
+
+int size = 100;
+
 //audio settings
 #define BUZZER_PIN 4
 int highFreq = 8000;
@@ -58,9 +66,19 @@ void setup() {
   pBLEScan->setActiveScan(true);  //active scan uses more power, but get results faster
   pBLEScan->setInterval(100);
   pBLEScan->setWindow(99);  // less or equal setInterval value
+
+    // Initialising the UI will init the display too.
+  display.init();
+
+  display.setFont(ArialMT_Plain_10);
+  display.drawString(0, 26, "BLuE Cricket");
+  delay(2000);
+
 }
 
 void loop() {
+  /* heltec_loop(); //needed? */
+  /* display.clear(); */
 
   if(!scanInProgress){
     pBLEScan->clearResults();  // delete old results fromBLEScan buffer to release memory
@@ -81,6 +99,7 @@ void loop() {
     Serial.println("No devices found. Skipping chirp.");
   }
 
+  /* display.display(); //how often do you need to call this? */
   delay(280); //delay between chirps
 }
 
@@ -96,18 +115,22 @@ void chirp(){
 
   Serial.print("chirp freq: ");
   Serial.println(chirpFreq);
+  int size;
 
   for(int count = 0; count < deviceCount/10; count++){
-
     //ramp up
     for (int freq = lowFreq; freq <= chirpFreq; freq += 100) { // Increase frequency in steps of 100 Hz
+      size = map(freq, lowFreq, highFreq, 10, 128);
       ledcWriteTone(BUZZER_PIN, freq);
       /* display.println(String(freq)); */
+      drawRect(size);
+      display.display();
       delay(10);             // Wait 100 ms before the next frequency
     }
 
     //hold high freq
     ledcWriteTone(BUZZER_PIN, chirpFreq);
+
     delay(100);
 
     //ramp down?
@@ -121,6 +144,9 @@ void chirp(){
     /*   delay(10);             // Wait 100 ms before the next frequency */
     /* } */
 
+    display.clear();
+    drawRect(0);
+    display.display();
     //hold low freq
     ledcWriteTone(BUZZER_PIN, lowFreq);
     delay(100); //
@@ -139,6 +165,9 @@ void chirp(){
     /*   delay(1);             // Wait 100 ms before the next frequency */
     /* } */
 
+  /* drawRect(1); */
+  /* display.display(); */
+  display.clear();
   ledcWriteTone(BUZZER_PIN, 0);
 
   /* delay(280); */
@@ -158,5 +187,18 @@ void scanCompleteCallback(BLEScanResults results) {
   }
 
   scanInProgress = false; // Allow the next scan to start
+}
+
+void drawRect(int size) {
+  //draw a rect from the center out
+
+  /* // Draw a pixel at given position */
+  /* for (int i = 0; i < 10; i++) { */
+  /*   display.setPixel(i, i); */
+  /*   display.setPixel(10 - i, i); */
+  /* } */
+
+  /* display.drawRect(CENTER_X - size / 2, 0, size, 64); */
+  display.fillRect(CENTER_X - size / 2, 0, size, 64);
 }
 
